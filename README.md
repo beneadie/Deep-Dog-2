@@ -2,6 +2,8 @@
 
 A multi-agent deep research system built with [LangGraph](https://github.com/langchain-ai/langgraph) and [LangChain](https://github.com/langchain-ai/langchain). A supervisor agent decomposes a research question into sub-tasks and delegates to specialized platform sub-agents (Web, Reddit, Substack) that search, read, and synthesize sources into a cited final report.
 
+This project builds on Deep Dog 1, which was built upon [ThinkDepth Deep Research](https://github.com/thinkdepthai/Deep_Research) by Paichun Lin. See [LICENSE](LICENSE) for the applicable attribution and license notices.
+
 Pipeline: `clarify_with_user` → `write_research_brief` → `write_draft_report` → `supervisor_subgraph` (parallel sub-agents) → `final_report_generation` — see `deep_research/research_agent_full.py:235` and `deep_research/research_agent_scope.py`.
 
 ## Features
