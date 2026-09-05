@@ -537,9 +537,14 @@ async def test_sources_output(results: list) -> None:
 
 
 async def test_helpers(results: list) -> None:
-    """Unit-test module-level helpers: _find_ref_tag, _build_read_refs, _tools_for_turn."""
+    """Unit-test engine, Reddit formatting, and module-level helpers."""
     from deep_research.agents import base as ra
     from deep_research.agents.shared.tools import batch_save_selected, finish_research, set_target_language
+    from deep_research.agents.reddit.tools import (
+        _format_reddit_comments,
+        _format_reddit_posts,
+        _post_date_and_age,
+    )
 
     search_results = {
         "S1": {"tool": "search_arxiv", "items": [
@@ -576,6 +581,41 @@ async def test_helpers(results: list) -> None:
     ok_unres = len(unrestricted) == 4
     results.append(("nonfinal_tools_full", PASS_MARK if ok_unres else FAIL_MARK, "-",
                     f"count={len(unrestricted)}"))
+
+    # Reddit listings retain both an absolute date and relative age.
+    date, age = _post_date_and_age(time.time() - 2 * 86400)
+    listing = _format_reddit_posts([{
+        "date": date, "age": age, "score": 7, "comments": 3,
+        "title": "Example post", "url": "https://reddit.com/r/test/example",
+    }], "Found 1 post:")
+    ok_reddit_age = date in listing and "2 days ago" in listing and "Age" in listing
+    results.append(("reddit_post_date_age", PASS_MARK if ok_reddit_age else FAIL_MARK, "-",
+                    f"date={date}, age={age}"))
+
+    # Nested Reddit replies retain the author they directly answer.
+    comments = [{
+        "kind": "t1",
+        "data": {
+            "author": "alice", "body": "Root comment", "score": 4,
+            "replies": {"data": {"children": [{
+                "kind": "t1",
+                "data": {
+                    "author": "bob", "body": "First reply", "score": 2,
+                    "replies": {"data": {"children": [{
+                        "kind": "t1",
+                        "data": {"author": "carol", "body": "Second reply", "score": 1},
+                    }]}}
+                },
+            }]}}
+        },
+    }]
+    comment_text = "\n".join(_format_reddit_comments(comments))
+    ok_attribution = (
+        "u/bob" in comment_text and "replying to u/alice" in comment_text
+        and "u/carol" in comment_text and "replying to u/bob" in comment_text
+    )
+    results.append(("reddit_reply_attribution", PASS_MARK if ok_attribution else FAIL_MARK, "-",
+                    "nested parent authors preserved"))
 
     # subagent_output_mode — discovery defaults to full-context report_inline,
     # research to the configured sources default; both overridable per call.
@@ -1090,7 +1130,7 @@ async def test_supervisor_prompt(results: list) -> None:
         "print('OK' if not leftover else ('LEFTOVER ' + ','.join(leftover)))"
     )
     repo_root = str(Path(__file__).resolve().parents[1])
-    for version in ("OPEN", "OPEN_DRAFT", "LEAN_ENFORCED", "STRICT_ENFORCED"):
+    for version in ("OPEN", "LEGACY"):
         env = dict(os.environ)
         env["PROMPT_VERSION"] = version
         r = subprocess.run(
@@ -1126,7 +1166,7 @@ async def test_language_detection(results: list) -> None:
         "print('OK' if all(checks) else 'MISSING')"
     )
     repo_root = str(Path(__file__).resolve().parents[1])
-    for version in ("OPEN", "OPEN_DRAFT", "LEAN_ENFORCED", "STRICT_ENFORCED"):
+    for version in ("OPEN", "LEGACY"):
         env = dict(os.environ)
         env["PROMPT_VERSION"] = version
         r = subprocess.run(

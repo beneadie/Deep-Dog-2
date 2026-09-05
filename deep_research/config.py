@@ -117,10 +117,9 @@ Examples of model names accepted by get_model():
 #
 # ── Prompt version ──────────────────────────────────────────────────────
 # PROMPT_VERSION             Supervisor prompt set.
-#                            "OPEN"             — no example report
-#                            "LEAN_ENFORCED"    — example report in draft only
-#                            "STRICT_ENFORCED"  — example report every iteration
-#                            Default: "STRICT_ENFORCED"
+#                            "OPEN"             — current open-ended prompt
+#                            "LEGACY"           — iterative draft refinement
+#                            Default: "OPEN"
 #
 # ── Research timing ─────────────────────────────────────────────────────
 # RESEARCH_TIME_MIN_MINUTES  Minimum research time before ResearchComplete.
@@ -255,13 +254,11 @@ from langchain_core.messages import AIMessage
 # via environment variable.
 SUPERVISOR_MODEL = os.environ.get("SUPERVISOR_MODEL", "deepseek-v4-pro")
 
-# Select the prompt version to use ("OPEN", "OPEN_DRAFT", "LEAN_ENFORCED", or "STRICT_ENFORCED")
+# Select the prompt version to use ("OPEN" or "LEGACY")
 # OPEN             = lean, most open-ended; minimal draft, supervisor fills in the information
-# OPEN_DRAFT       = the former OPEN: draft-heavy, no example report anywhere
-# LEAN_ENFORCED    = example report only in the single draft-report call at flow start
-# STRICT_ENFORCED  = example report in the supervisor system prompt on every iteration
+# LEGACY           = retained draft-heavy prompt with iterative draft refinement
 # Env: PROMPT_VERSION
-PROMPT_VERSION = os.environ.get("PROMPT_VERSION", "OPEN")  # "OPEN" | "OPEN_DRAFT" | "LEAN_ENFORCED" | "STRICT_ENFORCED"
+PROMPT_VERSION = os.environ.get("PROMPT_VERSION", "OPEN")  # "OPEN" | "LEGACY"
 
 # Research time window (in minutes) - controls the expected task duration
 RESEARCH_TIME_MIN_MINUTES = 5

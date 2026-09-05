@@ -1,10 +1,13 @@
 """
-Prompt Version: LEAN_ENFORCED (Base)
+Prompt Version: LEGACY
 
 Example-report behavior: example report only in the single draft-report call
 at the start of the flow; the supervisor system prompt does not carry it.
 
-Key differences from other prompt versions:
+This is the retained legacy prompt bundle for the iterative draft-refinement
+workflow.
+
+Key differences from the current OPEN prompt:
 - draft_report_generation_prompt includes an <Example Report> section referencing
   the example_report variable.
 - Includes the example_report variable (Roman Logistics report) used for guiding
@@ -12,7 +15,7 @@ Key differences from other prompt versions:
 - Target-language enforcement (the {target_language} placeholder) is present in
   the same downstream prompts as the other versions.
 
-Set PROMPT_VERSION = "LEAN_ENFORCED" in config.py to activate this version.
+Set PROMPT_VERSION = "LEGACY" in config.py to activate this version.
 """
 
 from datetime import datetime
@@ -22,7 +25,7 @@ from deep_research.config import RESEARCH_TIME_MIN_MINUTES, RESEARCH_TIME_MAX_MI
 _current_year = datetime.now().year
 _previous_year = _current_year - 1
 
-# This prompt version runs the iterative draft-refinement loop
+# This legacy prompt version runs the iterative draft-refinement loop
 # (the refine_draft_report tool stays available).
 ENABLE_REFINE = True
 
@@ -166,11 +169,11 @@ You have access to six tools:
    - Example: `get_subreddit_posts(subreddit="StockMarket", limit=100)`
    - note that it is only useful when reddit is a good source for your task.
 
-5. **get_reddit_post**: For extracting full content and comments from a specific Reddit post URL. Use this when:
+5. **get_reddit_posts**: For extracting full content and comments from selected Reddit posts. Use this when:
    - You have a Reddit post URL from get_subreddit_posts and want the full discussion
    - You need to read the post body and community comments with usernames
    - Returns post title, author, score, body, and full comment thread with reply structure
-   - Example: `get_reddit_post(url="https://www.reddit.com/r/stocks/comments/abc123/title/")`
+   - Example: `get_reddit_posts(items=[{"ref": "S1", "index": 2}])`
 
 6. **google_search_grounding**: (removed — use fetch_urls to read external pages instead)
 
@@ -555,7 +558,7 @@ You are given some freedom to make judgement calls on what is promising and what
 - **think_tool**: For reflection and planning
 - **search_term_in_subreddit**: For searching Reddit by keywords and filters (up to 200 posts)
 - **get_subreddit_posts**: For scanning specific Reddit communities
-- **get_reddit_post**: For extracting full content and comments from Reddit post URLs
+- **get_reddit_posts**: For extracting full content and comments from selected Reddit posts
 - **google_search_grounding**: (removed — use fetch_urls to read external pages instead)
 - **search_substack**: Search Substack newsletters for expert analysis and insights. Use simple search terms like company names, product names, or person names (e.g., "NVIDIA", "ozempic", "Peter Thiel"). Returns a list of articles to choose from. There will be less volume than reddit and less up-to-date but it is likely that the articles will be more in-depth and come from more reliable authors.
 - **read_substack_article**: Read the full content of a selected Substack article. Use after search_substack. Not every article will be good or up to date so be cuatious.
@@ -566,7 +569,7 @@ You are given some freedom to make judgement calls on what is promising and what
 Instead of doing 2-5 deep searches on one focused topic, you should:
 - Do 4-8 BROAD searches across different angles
 - Prioritize recent news and developments (only if the topic is a rapidly evolving field or involves current events). CRITICAL: Use date-focused queries like """ + str(_current_year) + """" to get the latest info. Avoid querying for old data (e.g. 2024) unless specifically asked.
-- **Use search_term_in_subreddit and get_subreddit_posts** to scan Reddit for community discussions. These tools provide URLs, metrics, and dates for many posts (up to 200). You are encouraged to look through many findings to identify trends before diving deep into specific threads with `get_reddit_post`.
+- **Use search_term_in_subreddit and get_subreddit_posts** to scan Reddit for community discussions. These tools provide URLs, metrics, dates, and ages for many posts (up to 200). You are encouraged to look through many findings to identify trends before diving deep into specific threads with `get_reddit_posts`.
 - Look at forum discussions, community sentiment, less mainstream sources
 - Search for non-obvious angles and emerging trends
 - **Use search_substack and read_substack_article** to scan Substack for expert analysis and insights with a bit more detail than Reddit. These tools provide URLs, metrics, and dates for many articles. You are encouraged to identify high quality and up-to-date articles using and select them for evaluation using`read_substack_article`.

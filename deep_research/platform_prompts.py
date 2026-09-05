@@ -301,8 +301,10 @@ REDDIT_TOOL_GUIDANCE = """
 Reddit workflow: run several searches in parallel across angles/subreddits, then
 read the most promising posts (keep include_comments=True — the discussion is
 the value) and save the best with batch_save_selected. Use check_user_profile
-before citing a user, and fetch_urls to follow external links. Full usage
-guidance for each tool is in its tool description — read them before choosing tools.
+before citing a user, and fetch_urls to follow external links. Search results
+include the absolute post date and time since posting; comment replies identify
+their direct parent author. Full usage guidance for each tool is in its tool
+description — read them before choosing tools.
 """
 
 PUBMED_TOOL_GUIDANCE = """

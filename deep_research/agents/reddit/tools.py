@@ -116,13 +116,83 @@ def _oauth_url(url: str) -> str:
               .rstrip("/").removesuffix(".json")
 
 
+def _post_date_and_age(created_utc: float) -> tuple[str, str]:
+    """Return an absolute post date and a human-readable relative age."""
+    if not created_utc:
+        return "unknown", "unknown"
+
+    age_seconds = max(0, time.time() - created_utc)
+    if age_seconds < 60:
+        age = "just now"
+    elif age_seconds < 3600:
+        age = f"{int(age_seconds // 60)} min ago"
+    elif age_seconds < 86400:
+        hours = int(age_seconds // 3600)
+        age = f"{hours} hour{'s' if hours != 1 else ''} ago"
+    elif age_seconds < 604800:
+        days = int(age_seconds // 86400)
+        age = f"{days} day{'s' if days != 1 else ''} ago"
+    elif age_seconds < 2592000:
+        weeks = int(age_seconds // 604800)
+        age = f"{weeks} week{'s' if weeks != 1 else ''} ago"
+    elif age_seconds < 31536000:
+        months = int(age_seconds // 2592000)
+        age = f"{months} month{'s' if months != 1 else ''} ago"
+    else:
+        years = int(age_seconds // 31536000)
+        age = f"{years} year{'s' if years != 1 else ''} ago"
+
+    return datetime.fromtimestamp(created_utc).strftime("%Y-%m-%d"), age
+
+
+def _reddit_search_item(post: dict) -> dict:
+    """Build the indexed metadata retained for a Reddit search result."""
+    return {
+        "id": post["url"],
+        "title": post["title"],
+        "url": post["url"],
+        "date": post["date"],
+        "age": post["age"],
+        "score": post["score"],
+        "comments": post["comments"],
+    }
+
+
+def _format_reddit_comments(
+    comments: list,
+    depth: int = 0,
+    parent_author: str | None = None,
+) -> list[str]:
+    """Format comments recursively while preserving reply relationships."""
+    lines = []
+    for comment in comments:
+        if comment.get("kind") != "t1":
+            continue
+        data = comment.get("data", {})
+        author = data.get("author", "[deleted]")
+        body = data.get("body", "[removed]")
+        score = data.get("score", 0)
+        indent = "  " * depth
+        reply_info = f" (replying to u/{parent_author})" if parent_author and depth > 0 else ""
+        lines.append(f"{indent}**u/{author}** [{score:+d}]{reply_info}:")
+        for body_line in body.split("\n"):
+            lines.append(f"{indent}> {body_line}")
+        lines.append("")
+
+        replies = data.get("replies")
+        if replies and isinstance(replies, dict):
+            reply_children = replies.get("data", {}).get("children", [])
+            lines.extend(_format_reddit_comments(reply_children, depth + 1, author))
+    return lines
+
+
 def _format_reddit_posts(posts: list, header: str) -> str:
     if not posts:
         return header + "\n(no posts)"
-    lines = [header, "", f"{'Date':<12} | {'Score':>6} | {'Cmts':>5} | Title"]
-    lines.append("-" * 90)
+    lines = [header, "", f"{'Date':<12} | {'Age':>14} | {'Score':>6} | {'Cmts':>5} | Title"]
+    lines.append("-" * 110)
     for p in posts:
-        lines.append(f"{p['date']:<12} | {p['score']:>6} | {p['comments']:>5} | {p['title'][:60]}")
+        lines.append(f"{p['date']:<12} | {p['age']:>14} | {p['score']:>6} | {p['comments']:>5} | {p['title'][:60]}")
         lines.append(f"    URL: {p['url']}")
         lines.append("")
     return "\n".join(lines)
@@ -140,9 +210,10 @@ async def search_term_in_subreddit(
 ) -> str:
     """Search Reddit by keyword — either across all of Reddit or within one subreddit.
 
-    This is your PRIMARY Reddit discovery tool. Leave `subreddit` empty to
-    search all of Reddit; pass a subreddit (e.g. 'stocks') to restrict the
-    search to that community. Results carry an [S#] handle — read promising
+     This is your PRIMARY Reddit discovery tool. Leave `subreddit` empty to
+     search all of Reddit; pass a subreddit (e.g. 'stocks') to restrict the
+     search to that community. Results include the post date and relative age,
+     and carry an [S#] handle — read promising
     posts with get_reddit_posts(items=[{"ref": "S1", "index": N}]) and save
     them with batch_save_selected.
 
@@ -197,12 +268,13 @@ async def search_term_in_subreddit(
             after_token = data.get("data", {}).get("after")
             for post in posts_raw:
                 p = post.get("data", {})
-                created = datetime.fromtimestamp(p.get("created_utc", 0)).strftime("%Y-%m-%d")
+                date, age = _post_date_and_age(p.get("created_utc", 0))
                 all_posts.append({
                     "title": p.get("title", ""),
                     "score": p.get("score", 0),
                     "comments": p.get("num_comments", 0),
-                    "date": created,
+                    "date": date,
+                    "age": age,
                     "url": f"https://reddit.com{p.get('permalink', '')}",
                 })
             if not after_token or len(all_posts) >= limit:
@@ -216,7 +288,7 @@ async def search_term_in_subreddit(
     display = _format_reddit_posts(all_posts[:limit], f"Found {len(all_posts[:limit])} posts for '{query}':")
     return {
         "display": display,
-        "items": [{"id": p["url"], "title": p["title"], "url": p["url"]} for p in all_posts[:limit]],
+        "items": [_reddit_search_item(p) for p in all_posts[:limit]],
     }
 
 
@@ -228,9 +300,10 @@ async def get_subreddit_posts(
 ) -> str:
     """Fetch a feed of posts from a specific subreddit (no search term needed).
 
-    Use this to discover what's currently trending in a community when you have
-    no specific query — e.g. scan r/opencode to see the latest sentiment.
-    Results carry an [S#] handle; read posts with get_reddit_posts and save
+     Use this to discover what's currently trending in a community when you have
+     no specific query — e.g. scan r/opencode to see the latest sentiment.
+     Results include the post date and relative age, and carry an [S#] handle;
+     read posts with get_reddit_posts and save
     them with batch_save_selected.
 
     - listing: 'hot' = currently popular (good default for live sentiment);
@@ -266,12 +339,13 @@ async def get_subreddit_posts(
             after_token = data.get("data", {}).get("after")
             for post in posts_raw:
                 p = post.get("data", {})
-                created = datetime.fromtimestamp(p.get("created_utc", 0)).strftime("%Y-%m-%d")
+                date, age = _post_date_and_age(p.get("created_utc", 0))
                 all_posts.append({
                     "title": p.get("title", ""),
                     "score": p.get("score", 0),
                     "comments": p.get("num_comments", 0),
-                    "date": created,
+                    "date": date,
+                    "age": age,
                     "url": f"https://reddit.com{p.get('permalink', '')}",
                 })
             if not after_token or len(all_posts) >= limit:
@@ -285,7 +359,7 @@ async def get_subreddit_posts(
     display = _format_reddit_posts(all_posts[:limit], f"Found {len(all_posts[:limit])} {listing} posts in r/{subreddit}:")
     return {
         "display": display,
-        "items": [{"id": p["url"], "title": p["title"], "url": p["url"]} for p in all_posts[:limit]],
+        "items": [_reddit_search_item(p) for p in all_posts[:limit]],
     }
 
 
@@ -333,25 +407,7 @@ async def _fetch_reddit_post(url: str, include_comments: bool = True) -> str:
     lines.append("## All Comments")
     lines.append("")
 
-    def format_comments(comments: list, depth: int = 0) -> None:
-        for comment in comments:
-            if comment.get("kind") != "t1":
-                continue
-            c = comment.get("data", {})
-            author = c.get("author", "[deleted]")
-            body = c.get("body", "[removed]")
-            score = c.get("score", 0)
-            indent = "  " * depth
-            lines.append(f"{indent}**u/{author}** [{score:+d}]:")
-            for bline in body.split("\n"):
-                lines.append(f"{indent}> {bline}")
-            lines.append("")
-            replies = c.get("replies")
-            if replies and isinstance(replies, dict):
-                reply_children = replies.get("data", {}).get("children", [])
-                format_comments(reply_children, depth + 1)
-
-    format_comments(comments_data)
+    lines.extend(_format_reddit_comments(comments_data))
 
     logger.info(f"{_DARK_ORANGE}Reddit post{_RESET} read "
                 f"({post_data.get('num_comments', 0)} comments)")
@@ -362,12 +418,13 @@ async def _fetch_reddit_post(url: str, include_comments: bool = True) -> str:
 
 @tool(parse_docstring=True)
 async def get_reddit_posts(items: list, include_comments: bool = True) -> str:
-    """Read one or more Reddit posts (full body + comment thread) in one call.
+    """Read one or more Reddit posts (full body + attributed comment thread) in one call.
 
     Pass posts by their [S#] ref + 1-based index from a search or feed result,
     e.g. get_reddit_posts(items=[{"ref": "S1", "index": 2}, ...]). Read up to 8
     posts per call. Keep include_comments=True — the comment thread is where the
     real discussion and disagreement live, which is the whole point of Reddit.
+    Nested replies identify the author they directly answer.
 
     CHOOSE WHICH POSTS TO READ (default priorities — unless the user says otherwise):
     - High comment counts (more discussion → more diverse viewpoints)

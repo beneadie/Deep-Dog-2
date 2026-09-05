@@ -230,7 +230,7 @@ See `config.py:20-64` for the full model catalog (DeepSeek, MiMo, Muse Spark, Ge
 |---|---|---|
 | `ENABLED_AGENTS` | `ResearchWeb, ResearchReddit, ResearchSubstack` | Which sub-agents supervisor may call (`config.py:449`) |
 | `GENERAL_AGENT_PLATFORMS` | `[]` (all) | Platforms the general agent may use |
-| `PROMPT_VERSION` | `OPEN` | `OPEN` / `OPEN_DRAFT` / `LEAN_ENFORCED` / `STRICT_ENFORCED` |
+| `PROMPT_VERSION` | `OPEN` | `OPEN` / `LEGACY` |
 | `SUBAGENT_OUTPUT_MODE` | `sources` | `sources` / `report` / `sources_inline` / `report_inline` |
 | `DISCOVERY_OUTPUT_MODE` | `report_inline` | Output mode for discovery sub-agents |
 
@@ -257,7 +257,7 @@ Deep Dog 2/
 │   ├── multi_agent_supervisor.py# Supervisor agent & delegation logic
 │   ├── run_platform.py          # Standalone single-platform runner
 │   ├── agents/                  # Platform agents (web, reddit, substack, ...)
-│   ├── prompts*.py              # Prompt versions (open, lean, strict)
+│   ├── prompts*.py              # Prompt bundles (open, legacy)
 │   ├── state_*.py               # Graph state schemas
 │   ├── observability.py         # Run folder & source aggregation
 │   ├── utils.py                 # Helpers (extract_text, date, etc.)

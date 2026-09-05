@@ -189,8 +189,8 @@ except ImportError:
 # schema listed in config.ENABLED_AGENTS (in that order). Config-driven so
 # disabling an agent is a one-line config change, not edits here.
 # refine_draft_report is only offered when the active prompt version enables the
-# diffusion loop (ENABLE_REFINE from deep_research.prompts — ON for
-# LEAN_ENFORCED/STRICT_ENFORCED, OFF for OPEN/OPEN_DRAFT).
+# iterative draft-refinement loop (ENABLE_REFINE from deep_research.prompts — ON
+# for LEGACY, OFF for OPEN).
 _base_tools = [ResearchComplete, think_tool]
 if ENABLE_REFINE:
     _base_tools = [ResearchComplete, think_tool, refine_draft_report]
@@ -248,7 +248,7 @@ def _build_supervisor_system_message(state: SupervisorState) -> str:
         max_concurrent_discovery_units=max_concurrent_discovery,
         max_researcher_iterations=max_researcher_iterations,
     )
-    # Only pass example_report if the prompt expects it (STRICT_ENFORCED version)
+    # Only pass example_report if the active prompt expects it.
     if "{example_report}" in lead_researcher_with_multiple_steps_diffusion_double_check_prompt:
         format_kwargs["example_report"] = example_report
     # Only pass target_language if the prompt expects it
@@ -431,7 +431,7 @@ async def supervisor_tools(state: SupervisorState) -> Command[Literal["superviso
 
     # Denoise gate: while the research window is still open, a denoise verdict of
     # CONTINUE_RESEARCH overrides a premature ResearchComplete so the loop keeps
-    # closing gaps (OPEN/OPEN_DRAFT denoise protocol).
+    # closing gaps (the active prompt's denoise protocol).
     denoise_forces_continue = (
         research_complete
         and elapsed_minutes < RESEARCH_TIME_MAX_MINUTES
