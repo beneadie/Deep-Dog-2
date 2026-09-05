@@ -69,7 +69,7 @@ Examples of model names accepted by get_model():
 #
 # ── Model selection ─────────────────────────────────────────────────────
 # SUBAGENT_MODEL             Primary sub-agent model (any model name above)
-#                            Default: "nvidia/nemotron-3.5-lightning"
+#                            Default: "deepseek-v4-flash"
 #                            Env: SUBAGENT_MODEL
 # SUBAGENT_MODEL_FALLBACK_CHAIN   Comma-separated fallback list.
 #                            Default: [SUBAGENT_MODEL, "deepseek-v4-flash"]
@@ -83,11 +83,13 @@ Examples of model names accepted by get_model():
 # SUPERVISOR_MODEL_FALLBACK_CHAIN   Comma-separated fallback list.
 #                            Default: [SUPERVISOR_MODEL, "deepseek-v4-pro"]
 #                            Env: SUPERVISOR_MODEL_FALLBACK_CHAIN
-# DRAFT_REPORT_MODEL         Initial draft model (any model name above).
-#                            Empty (default) = inherit the sub-agent chain.
+# DRAFT_REPORT_MODEL         Research brief and initial draft model (any model
+#                            name above).
+#                            Default: "nvidia/nemotron-3.5-lightning"
 #                            Env: DRAFT_REPORT_MODEL
 # DRAFT_REPORT_MODEL_FALLBACK_CHAIN   Comma-separated fallback list.
-#                            Default: the sub-agent chain.
+#                            Default: [DRAFT_REPORT_MODEL, "deepseek-v4-flash",
+#                            "deepseek-v4-pro"]
 #                            Env: DRAFT_REPORT_MODEL_FALLBACK_CHAIN
 #
 # ── Routing ─────────────────────────────────────────────────────────────
@@ -97,16 +99,18 @@ Examples of model names accepted by get_model():
 #                            Default: false
 #                            Env: ROUTE_VIA_OPENROUTER=true|1|yes|on
 # SUBAGENT_ROUTE_VIA_OPENROUTER
-#                            Platform research agents + research brief.
+#                            Platform research agents.
 #                            Unset = inherit ROUTE_VIA_OPENROUTER.
 # SUPERVISOR_ROUTE_VIA_OPENROUTER
 #                            Supervisor + refine_draft_report + final report write
 #                            (cache-tied; they always share this flag).
 #                            Unset = inherit ROUTE_VIA_OPENROUTER.
-# DRAFT_ROUTE_VIA_OPENROUTER Initial draft report node (cold pass, independent).
+# DRAFT_ROUTE_VIA_OPENROUTER Research brief + initial draft report nodes
+#                            (cold passes, independent).
 #                            Unset = inherit ROUTE_VIA_OPENROUTER.
 # DRAFT_REPORT_REASONING_EFFORT
-#                            Reasoning effort for the initial draft node ONLY:
+#                            Reasoning effort for the research brief and initial
+#                            draft nodes:
 #                            "" / "low" / "medium" / "high". Only honored when the
 #                            draft is routed via OpenRouter (native DeepSeek is
 #                            enabled/disabled only).
@@ -390,12 +394,12 @@ if _supervisor_chain_env:
 else:
     SUPERVISOR_MODEL_FALLBACK_CHAIN = [SUPERVISOR_MODEL, "deepseek-v4-pro"]
 
-# Sub-agent model chain (research platform agents + the research brief), as
+# Sub-agent model chain (research platform agents), as
 # model NAMES resolved by get_model(). SUBAGENT_MODEL is the primary; the chain
 # is the ordered fallback list. Override the whole chain with
 # SUBAGENT_MODEL_FALLBACK_CHAIN (comma-separated env value).
 # Example env value: "nvidia/nemotron-3.5-lightning,deepseek-v4-flash"
-SUBAGENT_MODEL = os.environ.get("SUBAGENT_MODEL", "nvidia/nemotron-3.5-lightning")
+SUBAGENT_MODEL = os.environ.get("SUBAGENT_MODEL", "deepseek-v4-flash")
 _subagent_chain_env = os.environ.get("SUBAGENT_MODEL_FALLBACK_CHAIN", "").strip()
 if _subagent_chain_env:
     SUBAGENT_MODEL_FALLBACK_CHAIN = [
@@ -404,12 +408,11 @@ if _subagent_chain_env:
 else:
     SUBAGENT_MODEL_FALLBACK_CHAIN = [SUBAGENT_MODEL, "deepseek-v4-flash"]
 
-# Draft-report writer model (the initial, cold, non-cacheable draft pass in
-# research_agent_scope.py). Unset = inherit the sub-agent chain (the same cheap
-# chain the research brief runs on), so a slow/expensive supervisor does NOT
-# slow the draft. The draft is just scaffolding that must be LONG, not perfect,
-# so a fast model is fine. Override with DRAFT_REPORT_MODEL to point the draft
-# writer at any model.
+# Draft-report model for the research brief and the initial, cold,
+# non-cacheable draft pass in research_agent_scope.py. These passes do not use
+# the sub-agent chain, so a slow/expensive supervisor does NOT slow them. They
+# are scaffolding that must be LONG, not perfect, so a fast model is fine.
+# Override with DRAFT_REPORT_MODEL to point both passes at any model.
 # Example env value: "nvidia/nemotron-3.5-lightning"
 DRAFT_REPORT_MODEL = os.environ.get("DRAFT_REPORT_MODEL", "nvidia/nemotron-3.5-lightning").strip()
 _draft_chain_env = os.environ.get("DRAFT_REPORT_MODEL_FALLBACK_CHAIN", "").strip()
@@ -479,15 +482,15 @@ BABA_PROVIDER_SLUG = "alibaba"
 # OpenRouter; "false"/"0"/"no"/"off" force the direct API.
 #
 #   ROUTE_VIA_OPENROUTER                shared default (global toggle)
-#   SUBAGENT_ROUTE_VIA_OPENROUTER       platform research agents + research brief
+#   SUBAGENT_ROUTE_VIA_OPENROUTER       platform research agents
 #   SUPERVISOR_ROUTE_VIA_OPENROUTER     supervisor decision + refine_draft_report +
 #                                       final report write. These three are CACHE-TIED:
 #                                       they must share the same provider/model so the
 #                                       prompt-cache prefix hits, so they always use the
 #                                       supervisor flag together.
-#   DRAFT_ROUTE_VIA_OPENROUTER          the initial draft report node (write_draft_report).
-#                                       This pass is cold/non-cacheable, so it may route
-#                                       independently (e.g. to OpenRouter for a
+#   DRAFT_ROUTE_VIA_OPENROUTER          the research brief and initial draft report nodes.
+#                                       These passes are cold/non-cacheable, so they may
+#                                       route independently (e.g. to OpenRouter for a
 #                                       reasoning-effort draft).
 #
 # Example:
@@ -499,12 +502,13 @@ SUBAGENT_ROUTE_VIA_OPENROUTER = os.environ.get("SUBAGENT_ROUTE_VIA_OPENROUTER", 
 SUPERVISOR_ROUTE_VIA_OPENROUTER = os.environ.get("SUPERVISOR_ROUTE_VIA_OPENROUTER", "").strip().lower()
 DRAFT_ROUTE_VIA_OPENROUTER = os.environ.get("DRAFT_ROUTE_VIA_OPENROUTER", "").strip().lower()
 
-# Reasoning effort for the initial draft report node ONLY. "" = provider default.
+# Reasoning effort for the research brief and initial draft report nodes.
+#                            "" = provider default.
 #   "" / "low" / "medium" / "high"
 # NOTE: effort tiers are an OpenRouter "reasoning.effort" convention. Native DeepSeek
-# only supports thinking enabled/disabled, so effort is only honored when the draft is
-# routed via OpenRouter (DRAFT_ROUTE_VIA_OPENROUTER=true). Set it together with
-# DRAFT_REPORT_MODEL (draft model) and DRAFT_REPORT_MODEL_FALLBACK_CHAIN (draft chain).
+# only supports thinking enabled/disabled, so effort is only honored when the brief and
+# draft are routed via OpenRouter (DRAFT_ROUTE_VIA_OPENROUTER=true). Set it together
+# with DRAFT_REPORT_MODEL (draft model) and DRAFT_REPORT_MODEL_FALLBACK_CHAIN (draft chain).
 DRAFT_REPORT_REASONING_EFFORT = os.environ.get("DRAFT_REPORT_REASONING_EFFORT", "").strip().lower()
 
 # ── Chinese content moderation guard ───────────────────────────────────
@@ -1193,11 +1197,11 @@ def get_supervisor_model(tools: list = None, max_tokens: int = None, temperature
 def get_draft_report_model(max_tokens: int = None, temperature: float = 0,
                            route_via_openrouter: bool = None,
                            reasoning_effort: str = None):
-    """Get the resilient model chain for the initial draft report writer.
+    """Get the resilient model chain for the research brief and initial draft.
 
-    Uses DRAFT_REPORT_MODEL_FALLBACK_CHAIN (defaults to the sub-agent chain).
-    The initial draft is a cold, non-cacheable pass, so DRAFT_REPORT_MODEL lets
-    deployments point it at any model without touching the supervisor.
+    Uses DRAFT_REPORT_MODEL_FALLBACK_CHAIN. The research brief and initial draft
+    are cold, non-cacheable passes, so DRAFT_REPORT_MODEL lets deployments point
+    both at any model without touching the supervisor or platform agents.
 
     Routing resolves via DRAFT_ROUTE_VIA_OPENROUTER (inheriting
     ROUTE_VIA_OPENROUTER). Reasoning effort defaults to
@@ -1224,9 +1228,8 @@ def get_subagent_model(
 ):
     """Get a resilient model runnable for the sub-agent role only.
 
-    Sub-agents (research platform agents + the research brief) use
-    SUBAGENT_MODEL_FALLBACK_CHAIN (defaults to
-    nvidia/nemotron-3.5-lightning → deepseek-v4-flash) with LangChain's
+    Research platform sub-agents use SUBAGENT_MODEL_FALLBACK_CHAIN (defaults to
+    deepseek-v4-flash) with LangChain's
     .with_fallbacks() mechanism. Pass `chain` to override the
     chain per invocation (e.g. run_platform.py selecting gemini or the
     Alibaba-Singapore deepseek by model name). Routing resolves via

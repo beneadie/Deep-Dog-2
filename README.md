@@ -197,10 +197,10 @@ All tuning lives in `deep_research/config.py:1`. Most values can be overridden v
 |---|---|---|
 | `SUPERVISOR_MODEL` | `deepseek-v4-pro` | Supervisor + final report writer |
 | `SUPERVISOR_MODEL_FALLBACK_CHAIN` | `SUPERVISOR_MODEL,deepseek-v4-pro` | Comma-separated fallback list |
-| `SUBAGENT_MODEL` | `nvidia/nemotron-3.5-lightning` | Platform sub-agents + research brief |
+| `SUBAGENT_MODEL` | `deepseek-v4-flash` | Platform sub-agents |
 | `SUBAGENT_MODEL_FALLBACK_CHAIN` | `SUBAGENT_MODEL,deepseek-v4-flash` | Comma-separated fallback list |
-| `DRAFT_REPORT_MODEL` | `nvidia/nemotron-3.5-lightning` | Initial cold draft pass |
-| `DRAFT_REPORT_MODEL_FALLBACK_CHAIN` | `DRAFT_REPORT_MODEL,deepseek-v4-flash,deepseek-v4-pro` | Fallback for draft |
+| `DRAFT_REPORT_MODEL` | `nvidia/nemotron-3.5-lightning` | Research brief + initial cold draft pass |
+| `DRAFT_REPORT_MODEL_FALLBACK_CHAIN` | `DRAFT_REPORT_MODEL,deepseek-v4-flash,deepseek-v4-pro` | Fallback for research brief + initial draft |
 
 See `config.py:20-64` for the full model catalog (DeepSeek, MiMo, Muse Spark, Gemini, GPT, Nemotron, GLM, OpenRouter slugs).
 
@@ -209,10 +209,10 @@ See `config.py:20-64` for the full model catalog (DeepSeek, MiMo, Muse Spark, Ge
 | Variable | Default | Description |
 |---|---|---|
 | `ROUTE_VIA_OPENROUTER` | `false` | Global default: route DeepSeek/MiMo/Meta via OpenRouter |
-| `SUBAGENT_ROUTE_VIA_OPENROUTER` | inherit | Override for sub-agents + brief |
+| `SUBAGENT_ROUTE_VIA_OPENROUTER` | inherit | Override for platform sub-agents |
 | `SUPERVISOR_ROUTE_VIA_OPENROUTER` | inherit | Override for supervisor + refine + final write (cache-tied) |
-| `DRAFT_ROUTE_VIA_OPENROUTER` | inherit | Override for draft report (cold pass) |
-| `DRAFT_REPORT_REASONING_EFFORT` | `""` | `low`/`medium`/`high` — only honored via OpenRouter |
+| `DRAFT_ROUTE_VIA_OPENROUTER` | inherit | Override for research brief + initial draft (cold passes) |
+| `DRAFT_REPORT_REASONING_EFFORT` | `""` | `low`/`medium`/`high` — applies to brief + draft via OpenRouter |
 
 ### Research depth & timing
 

@@ -1084,11 +1084,13 @@ async def test_draft_model_config(results: list) -> None:
 
     from deep_research import config
 
-    # Default: inherits the sub-agent chain when DRAFT_REPORT_MODEL is unset
+    # Default: uses its own dedicated chain for the research brief and initial draft.
     ok_default = (
-        config.DRAFT_REPORT_MODEL_FALLBACK_CHAIN == config.SUBAGENT_MODEL_FALLBACK_CHAIN
+        bool(config.DRAFT_REPORT_MODEL)
+        and config.DRAFT_REPORT_MODEL_FALLBACK_CHAIN[0] == config.DRAFT_REPORT_MODEL
+        and config.DRAFT_REPORT_MODEL_FALLBACK_CHAIN != config.SUBAGENT_MODEL_FALLBACK_CHAIN
     )
-    results.append(("draft_model_inherits_subagent", PASS_MARK if ok_default else FAIL_MARK, "-",
+    results.append(("draft_model_dedicated_chain", PASS_MARK if ok_default else FAIL_MARK, "-",
                     str(config.DRAFT_REPORT_MODEL_FALLBACK_CHAIN)))
 
     # get_draft_report_model returns a runnable
@@ -1351,25 +1353,27 @@ async def test_routing_config(results: list) -> None:
     ok_native = out3.startswith("ChatDeepSeek") and "reasoning_effort ignored" in r3.stderr
     results.append(("effort_native_warns", PASS_MARK if ok_native else FAIL_MARK, "-", out3))
 
-    # 6. Default draft (no overrides) inherits the sub-agent chain: under the same
-    #    routing the draft and sub-agent models resolve to the same provider base.
+    # 6. The draft chain is independent from the platform sub-agent chain.
     code4 = (
         "from dotenv import load_dotenv; load_dotenv();"
         "import deep_research.config as c;"
-        "s = c.get_subagent_model(max_tokens=32000);"
-        "d = c.get_draft_report_model(max_tokens=32000);"
-        "print(getattr(s,'openai_api_base',None), '|', getattr(d,'openai_api_base',None))"
+        "print(c.DRAFT_REPORT_MODEL_FALLBACK_CHAIN, '|', c.SUBAGENT_MODEL_FALLBACK_CHAIN)"
     )
     env4 = dict(os.environ)
     env4["ROUTE_VIA_OPENROUTER"] = ""
     env4["DRAFT_ROUTE_VIA_OPENROUTER"] = ""
     env4["DRAFT_REPORT_REASONING_EFFORT"] = ""
-    env4["DRAFT_REPORT_MODEL"] = ""
+    env4["DRAFT_REPORT_MODEL"] = "nvidia/nemotron-3.5-lightning"
+    env4.pop("DRAFT_REPORT_MODEL_FALLBACK_CHAIN", None)
     r4 = subprocess.run([sys.executable, "-c", code4], capture_output=True, text=True, env=env4, cwd=repo_root)
     out4 = r4.stdout.strip()
     parts4 = out4.split("|")
-    ok_default = len(parts4) == 2 and parts4[0].strip() == parts4[1].strip()
-    results.append(("draft_default_inherits_subagent", PASS_MARK if ok_default else FAIL_MARK, "-", out4))
+    ok_default = (
+        len(parts4) == 2
+        and "nvidia/nemotron-3.5-lightning" in parts4[0]
+        and parts4[0].strip() != parts4[1].strip()
+    )
+    results.append(("draft_chain_independent", PASS_MARK if ok_default else FAIL_MARK, "-", out4))
 
 
 async def test_meta(results: list) -> None:

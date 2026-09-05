@@ -19,18 +19,15 @@ from langgraph.types import Command
 
 from deep_research.prompts import transform_messages_into_research_topic_human_msg_prompt, draft_report_generation_prompt, clarify_with_user_instructions, example_report
 from deep_research.state_scope import AgentState, ResearchQuestion, AgentInputState
-from deep_research.config import get_draft_report_model, get_subagent_model, TARGET_LANGUAGE_FALLBACK
+from deep_research.config import get_draft_report_model, TARGET_LANGUAGE_FALLBACK
 from deep_research.utils import extract_text_from_response, get_today_str
 
 # ===== CONFIGURATION =====
 
-# Research brief: written on the sub-agent chain (lighter model) since it only
-# extracts a topic + language from the conversation.
-model = get_subagent_model(max_tokens=32000)
-# Draft report: long-form synthesis on the configurable draft model (defaults
-# to the supervisor chain; set DRAFT_REPORT_MODEL for a cheaper writer). This
-# pass is cold/non-cacheable and only needs to be LONG, not perfect.
-creative_model = get_draft_report_model(max_tokens=32000)
+# The research brief and initial draft both use the dedicated draft-report
+# chain. These are cold, non-cacheable writing passes that need to be long,
+# not perfect.
+draft_model = get_draft_report_model(max_tokens=32000)
 
 # ===== WORKFLOW NODES =====
 
@@ -79,7 +76,7 @@ def write_research_brief(state: AgentState) -> Command[Literal["write_draft_repo
     # forced tool_choice with a 400; json_object is the cross-provider path
     # (DeepSeek JSON Output guide, MiMo/OpenRouter OpenAI-compatible APIs).
     parser = PydanticOutputParser(pydantic_object=ResearchQuestion)
-    structured_output_model = model.with_structured_output(ResearchQuestion, method="json_mode")
+    structured_output_model = draft_model.with_structured_output(ResearchQuestion, method="json_mode")
 
     # Generate research brief from conversation history. get_format_instructions()
     # supplies the JSON schema + the word "json" (required by DeepSeek json_object).
@@ -105,9 +102,9 @@ def write_research_brief(state: AgentState) -> Command[Literal["write_draft_repo
 
 async def write_draft_report(state: AgentState) -> Command[Literal["__end__"]]:
     """
-    Final report generation node.
+    Initial draft report generation node.
 
-    Synthesizes all research findings into a comprehensive final report
+    Synthesizes the research brief into a comprehensive initial draft report
     """
     research_brief = state.get("research_brief", "")
     target_language = state.get("target_language") or TARGET_LANGUAGE_FALLBACK
@@ -121,7 +118,7 @@ async def write_draft_report(state: AgentState) -> Command[Literal["__end__"]]:
 
     # Generate long-form text directly (avoid structured JSON wrapping for large payloads)
     response = await asyncio.wait_for(
-        creative_model.ainvoke([HumanMessage(content=draft_report_prompt)]),
+        draft_model.ainvoke([HumanMessage(content=draft_report_prompt)]),
         timeout=420,  # 7 minutes — allows headroom when running concurrent tasks
     )
     draft_report = extract_text_from_response(response.content)
